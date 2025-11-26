@@ -1,4 +1,5 @@
 import java.net.*;
+import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -7,12 +8,29 @@ public class ServidorChat {
 
     // Mapa: sala → (nombre → dirección)
     private static Map<String, Map<String, InetSocketAddress>> usuariosPorSala = new ConcurrentHashMap<>();
+    // Almacenamiento de archivos subidos por id
+    private static Map<String, File> archivosPorId = new ConcurrentHashMap<>();
 
     public static void main(String[] args) throws Exception {
         DatagramSocket socket = new DatagramSocket(PUERTO);
         System.out.println("Servidor sincronizado en puerto " + PUERTO);
 
-        byte[] buffer = new byte[4096];
+        // Lanzar servidor TCP para subir/descargar archivos de audio
+        new Thread(() -> {
+            try (ServerSocket server = new ServerSocket(5056)) {
+                System.out.println("Servidor TCP de archivos en puerto 5056");
+                File uploads = new File("uploads");
+                if (!uploads.exists()) uploads.mkdirs();
+                while (true) {
+                    Socket s = server.accept();
+                    new Thread(() -> manejarConexionTCP(s, uploads, socket)).start();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }).start();
+
+        byte[] buffer = new byte[8192];
         while (true) {
             DatagramPacket paquete = new DatagramPacket(buffer, buffer.length);
             socket.receive(paquete);
@@ -24,7 +42,7 @@ public class ServidorChat {
         try {
             String msg = new String(paquete.getData(), 0, paquete.getLength());
             InetSocketAddress direccion = new InetSocketAddress(paquete.getAddress(), paquete.getPort());
-            String[] partes = msg.split("\\|", 5);
+            String[] partes = msg.split("\\|", 6);
             String comando = partes[0];
 
             switch (comando) {
@@ -117,7 +135,88 @@ public class ServidorChat {
                     break;
                 }
 
+                case "AUDIO_START": {
+                    String sala = partes[1];
+                    broadcast(socket, sala, msg);
+                    break;
+                }
+
+                case "AUDIO_CHUNK": {
+                    String sala = partes[1];
+                    broadcast(socket, sala, msg);
+                    break;
+                }
+
+                case "AUDIO_END": {
+                    String sala = partes[1];
+                    broadcast(socket, sala, msg);
+                    break;
+                }
+
             }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void manejarConexionTCP(Socket s, File uploadsDir, DatagramSocket udpSocket) {
+        try (Socket socket = s;
+             InputStream in = socket.getInputStream();
+             OutputStream out = socket.getOutputStream()) {
+
+            // Leer la línea de encabezado hasta '\n' manualmente para evitar que un BufferedReader
+            // consuma bytes de archivo que luego perderíamos al leer directamente desde 'in'.
+            ByteArrayOutputStream headerBuf = new ByteArrayOutputStream();
+            int b;
+            while ((b = in.read()) != -1) {
+                if (b == '\n') break;
+                headerBuf.write(b);
+            }
+            if (headerBuf.size() == 0) return;
+            String line = headerBuf.toString("UTF-8");
+            String[] parts = line.split("\\|", 6);
+            String cmd = parts[0];
+
+            if ("UPLOAD".equals(cmd)) {
+                // UPLOAD|sala|usuario|filename|id|size
+                String sala = parts[1];
+                String usuario = parts[2];
+                String filename = parts[3];
+                String id = parts[4];
+                long size = Long.parseLong(parts[5]);
+
+                File outFile = new File(uploadsDir, id + "_" + filename);
+                try (FileOutputStream fos = new FileOutputStream(outFile)) {
+                    byte[] buffer = new byte[8192];
+                    long remaining = size;
+                    while (remaining > 0) {
+                        int read = in.read(buffer, 0, (int) Math.min(buffer.length, remaining));
+                        if (read == -1) break;
+                        fos.write(buffer, 0, read);
+                        remaining -= read;
+                    }
+                }
+                archivosPorId.put(id, outFile);
+                // Notificar por UDP a la sala que hay un audio disponible
+                String aviso = "AUDIO_AVAIL|" + sala + "|" + usuario + "|" + filename + "|" + id + "|" + size;
+                broadcast(udpSocket, sala, aviso);
+
+            } else if ("DOWNLOAD".equals(cmd)) {
+                // DOWNLOAD|id
+                String id = parts[1];
+                File f = archivosPorId.get(id);
+                if (f != null && f.exists()) {
+                    try (FileInputStream fis = new FileInputStream(f)) {
+                        byte[] buffer = new byte[8192];
+                        int r;
+                        while ((r = fis.read(buffer)) != -1) {
+                            out.write(buffer, 0, r);
+                        }
+                        out.flush();
+                    }
+                }
+            }
+
         } catch (Exception e) {
             e.printStackTrace();
         }
