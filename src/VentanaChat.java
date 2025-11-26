@@ -4,9 +4,6 @@ import java.nio.file.*;
 import java.util.Base64;
 import javax.swing.*;
 
-//import para el manejo de reproducción de audio 
-import javax.sound.sampled.*;
-
 public class VentanaChat extends JFrame implements ClienteChat.MensajeListener {
     private JTextArea areaMensajes;
     private JTextField campoTexto;
@@ -75,28 +72,6 @@ public class VentanaChat extends JFrame implements ClienteChat.MensajeListener {
         if (texto.isEmpty()) return;
         cliente.enviar("MSG|" + nombreSala + "|" + nombreUsuario + ": " + texto);
         campoTexto.setText("");
-    }
-
-    private void reproducirAudio(File archivo) {
-    try {
-        AudioInputStream audioInputStream = AudioSystem.getAudioInputStream(archivo);
-        Clip clip = AudioSystem.getClip();
-        clip.open(audioInputStream);
-        clip.start();
-        
-        // Opcional: Esperar a que la reproducción termine antes de cerrar el stream.
-        // En un chat, es mejor no bloquear el hilo de la GUI, por lo que lo dejamos
-        // que se reproduzca en segundo plano.
-        
-        } catch (UnsupportedAudioFileException e) {
-            JOptionPane.showMessageDialog(this, "Error de audio: Formato no soportado.", "Error de Reproducción", JOptionPane.ERROR_MESSAGE);
-        } catch (LineUnavailableException e) {
-            JOptionPane.showMessageDialog(this, "Error de audio: Línea de sonido no disponible.", "Error de Reproducción", JOptionPane.ERROR_MESSAGE);
-        } catch (IOException e) {
-            JOptionPane.showMessageDialog(this, "Error de audio: Error de lectura del archivo.", "Error de Reproducción", JOptionPane.ERROR_MESSAGE);
-        } catch (Exception e) {
-            // Otros posibles errores
-        }
     }
 
     private void enviarSticker() {
@@ -199,24 +174,17 @@ public class VentanaChat extends JFrame implements ClienteChat.MensajeListener {
                     ImageIcon icon = new ImageIcon(bytes);
                     JLabel label = new JLabel(icon);
                     JOptionPane.showMessageDialog(this, label, "Sticker de " + remitente, JOptionPane.PLAIN_MESSAGE);
-
                 } else if (mensaje.startsWith("AUDIO|")) {
-                String[] partes = mensaje.split("\\|", 5);
-                String remitente = partes[1];
-                String nombreArchivo = partes[2];
-                String base64 = partes[3];
-                
-                // 1. Decodificar y guardar el archivo
-                byte[] bytes = Base64.getDecoder().decode(base64);
-                // Usamos un prefijo único para evitar conflictos y facilitar la limpieza.
-                File archivo = new File("audio_recibido_" + nombreArchivo); 
-                Files.write(archivo.toPath(), bytes);
-                
-                // 2. Mostrar mensaje en el chat (como solicitaste)
-                areaMensajes.append("🔊 (Audio de " + remitente + "): " + nombreArchivo + "\n");
-                
-                // 3. Reproducir inmediatamente
-                reproducirAudio(archivo); 
+                    String[] partes = mensaje.split("\\|", 5);
+                    String remitente = partes[1];
+                    String nombreArchivo = partes[2];
+                    String base64 = partes[3];
+                    byte[] bytes = Base64.getDecoder().decode(base64);
+                    File archivo = new File("audio_" + nombreArchivo);
+                    Files.write(archivo.toPath(), bytes);
+                    areaMensajes.append("(Audio de " + remitente + "): " + archivo.getName() + "\n");
+                    JOptionPane.showMessageDialog(this,
+                            "Nuevo audio recibido de " + remitente + "\nArchivo guardado como " + archivo.getName());
                 } else {
                     areaMensajes.append(mensaje + "\n");
                 }
