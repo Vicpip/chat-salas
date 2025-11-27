@@ -2,7 +2,6 @@ import java.net.*;
 import java.io.*;
 import java.nio.file.Files;
 import java.util.UUID;
-import java.util.Base64;
 
 public class ClienteChat {
     private DatagramSocket socket;
@@ -50,35 +49,7 @@ public class ClienteChat {
         }
     }
 
-    // Envía un archivo de audio codificado en base64 en fragmentos pequeños para evitar
-    // superar el tamaño máximo de paquete UDP.
-    public void enviarAudioFile(File archivo) {
-        try {
-            byte[] raw = Files.readAllBytes(archivo.toPath());
-            String base64 = Base64.getEncoder().encodeToString(raw);
-
-            // Tamaño del chunk en caracteres base64 (ajustable). Debe dejar espacio para encabezados.
-            final int CHUNK_SIZE = 2000;
-            int total = (base64.length() + CHUNK_SIZE - 1) / CHUNK_SIZE;
-
-            // Enviar inicio
-            enviar("AUDIO_START|" + sala + "|" + nombreUsuario + "|" + archivo.getName() + "|" + total);
-
-            for (int i = 0; i < total; i++) {
-                int start = i * CHUNK_SIZE;
-                int end = Math.min(base64.length(), start + CHUNK_SIZE);
-                String chunk = base64.substring(start, end);
-                // AUDIO_CHUNK|sala|usuario|nombreArchivo|index|chunk
-                enviar("AUDIO_CHUNK|" + sala + "|" + nombreUsuario + "|" + archivo.getName() + "|" + i + "|" + chunk);
-            }
-
-            // Enviar fin
-            enviar("AUDIO_END|" + sala + "|" + nombreUsuario + "|" + archivo.getName());
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
+    // (Removed) chunked UDP audio send - replaced by TCP upload (subirAudioTCP)
 
     private void escuchar() {
         try {

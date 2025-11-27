@@ -126,32 +126,7 @@ public class ServidorChat {
                     break;
                 }
 
-                case "AUDIO": {
-                    String sala = partes[1];
-                    String usuario = partes[2];
-                    String nombreArchivo = partes[3];
-                    String base64 = partes[4];
-                    broadcast(socket, sala, "AUDIO|" + usuario + "|" + nombreArchivo + "|" + base64);
-                    break;
-                }
-
-                case "AUDIO_START": {
-                    String sala = partes[1];
-                    broadcast(socket, sala, msg);
-                    break;
-                }
-
-                case "AUDIO_CHUNK": {
-                    String sala = partes[1];
-                    broadcast(socket, sala, msg);
-                    break;
-                }
-
-                case "AUDIO_END": {
-                    String sala = partes[1];
-                    broadcast(socket, sala, msg);
-                    break;
-                }
+                
 
             }
         } catch (Exception e) {
@@ -165,7 +140,7 @@ public class ServidorChat {
              OutputStream out = socket.getOutputStream()) {
 
             // Leer la línea de encabezado hasta '\n' manualmente para evitar que un BufferedReader
-            // consuma bytes de archivo que luego perderíamos al leer directamente desde 'in'.
+            // consuma bytes de archivo que luego se pierden al leer directamente desde 'in'.
             ByteArrayOutputStream headerBuf = new ByteArrayOutputStream();
             int b;
             while ((b = in.read()) != -1) {
@@ -178,7 +153,6 @@ public class ServidorChat {
             String cmd = parts[0];
 
             if ("UPLOAD".equals(cmd)) {
-                // UPLOAD|sala|usuario|filename|id|size
                 String sala = parts[1];
                 String usuario = parts[2];
                 String filename = parts[3];
