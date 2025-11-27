@@ -168,8 +168,29 @@ public class VentanaChat extends JFrame implements ClienteChat.MensajeListener {
                     File archivo = new File("recibidos_" + nombreArchivo);
                     Files.write(archivo.toPath(), bytes);
                     areaMensajes.append("(Sticker de " + remitente + "): " + archivo.getName() + "\n");
-                    ImageIcon icon = new ImageIcon(bytes);
+                    
+                    // bytes = contenido decodificado del sticker
+                    ImageIcon original = new ImageIcon(bytes);
+
+                    // Tamaño máximo deseado (ajusta aquí)
+                    final int MAX_WIDTH = 200;
+                    final int MAX_HEIGHT = 200;
+
+                    int w = original.getIconWidth();
+                    int h = original.getIconHeight();
+                    double scale = Math.min((double) MAX_WIDTH / w, (double) MAX_HEIGHT / h);
+
+                    // Evitar agrandar imágenes pequeñas
+                    if (scale > 1.0) scale = 1.0;
+
+                    int newW = (int) (w * scale);
+                    int newH = (int) (h * scale);
+
+                    Image scaledImg = original.getImage().getScaledInstance(newW, newH, Image.SCALE_SMOOTH);
+                    ImageIcon icon = new ImageIcon(scaledImg);
+
                     JLabel label = new JLabel(icon);
+                    label.setPreferredSize(new java.awt.Dimension(newW, newH));
                     JOptionPane.showMessageDialog(this, label, "Sticker de " + remitente, JOptionPane.PLAIN_MESSAGE);
                 
                 } else if (mensaje.startsWith("AUDIO_AVAIL|")) {
